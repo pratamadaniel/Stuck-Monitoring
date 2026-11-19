@@ -128,10 +128,14 @@ async function signIn(username,password){
       headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({action:'login',username,password})
     });
-  }catch(_){
-    throw new Error('Tidak bisa terhubung ke server login. Periksa koneksi internet.');
+  }catch(err){
+    console.error('Login gagal, detail:',err);
+    throw new Error('Tidak bisa terhubung ke server login ('+err.message+'). Buka Console (F12) untuk detail.');
   }
-  const json=await res.json().catch(()=>null);
+  const json=await res.json().catch(e=>{
+    console.error('Respons bukan JSON. Status:',res.status,res.url,e);
+    throw new Error('Server login mengirim respons yang tidak valid (status '+res.status+'). Kemungkinan deployment belum publik.');
+  });
   if(!json||!json.ok) throw new Error(json?.error||'Server login tidak merespons dengan benar');
   const rows=json.data||[];
   if(!rows.length) throw new Error('Username atau password salah, atau akun nonaktif');
