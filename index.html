@@ -102,8 +102,9 @@ const USERS_KEY='sm_users', SESSION_KEY='sm_session', NOTES_KEY='sm_notes', CSV_
 const PAGE_SIZE=50;
 const BUCKETS=['<2 Hours','2-4 Hours','4-6 Hours','6-8 Hours','8-10 Hours','10-12 Hours','>12 Hours'];
 // Isi dengan URL dan anon key dari Supabase (Project Settings > API). JANGAN pakai service_role key.
-const SUPABASE_URL='https://GANTI-PROJECT-ID.supabase.co';
-const SUPABASE_KEY='GANTI-ANON-KEY';
+// Diisi otomatis oleh scripts/build.js dari Environment Variables di Netlify
+const SUPABASE_URL='__SUPABASE_URL__';
+const SUPABASE_KEY='__SUPABASE_ANON_KEY__';
 
 // Panggil fungsi (RPC) di database Supabase
 async function rpc(fn,body){
@@ -178,6 +179,7 @@ function toRecords(table){
 }
 
 /* ================= DATA LOADING ================= */
+// Mengambil data shipment dari tab Raw (Google Sheet publik, format CSV)
 async function loadData(){
   try{
     const res=await fetch(CSV_URL,{cache:'no-store'});
@@ -186,11 +188,11 @@ async function loadData(){
     if(text.trim().startsWith('<')) throw new Error('Sheet tidak bisa dibaca (cek pengaturan berbagi)');
     const records=toRecords(parseCSV(text));
     const at=new Date().toISOString();
-    store(CSV_CACHE_KEY,{at,text}); // cache untuk mode offline (jika terlalu besar, simpan dilewati)
+    try{ localStorage.setItem(CSV_CACHE_KEY,JSON.stringify({at,text})) }catch{} // cache untuk mode offline
     DATA={records,at,offline:false,error:''};
   }catch(err){
     const c=load(CSV_CACHE_KEY,null);
-    if(c){ DATA={records:toRecords(parseCSV(c.text)),at:c.at,offline:true,error:err.message} }
+    if(c&&c.text){ DATA={records:toRecords(parseCSV(c.text)),at:c.at,offline:true,error:err.message} }
     else { DATA={records:[],at:null,offline:true,error:err.message} }
   }
 }
@@ -242,6 +244,7 @@ async function login(e){
     session={username:rows[0].username,name:rows[0].name,level:rows[0].level};
     cred={username,password};
     view.tab='monitor';
+    await loadData();
     render();
   }catch(err){
     $('#loginErr').textContent='Gagal terhubung ke database: '+err.message;
@@ -253,6 +256,7 @@ function logout(){
   session=null;
   cred=null;
   users=[];
+  DATA={records:[],at:null,offline:false,error:''};
   closeModal();
   render();
 }
@@ -530,8 +534,6 @@ async function loadUsers(){
 render();
 setInterval(updateWatermark,60000);
 
-// Muat data di awal dengan cepat dari cache, lalu perbarui dari sheet
-(async()=>{ await loadData(); if(session) render(); })();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
