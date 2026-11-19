@@ -101,10 +101,21 @@ const CSV_URL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=ou
 const USERS_KEY='sm_users', SESSION_KEY='sm_session', NOTES_KEY='sm_notes', CSV_CACHE_KEY='sm_csv_cache';
 const PAGE_SIZE=50;
 const BUCKETS=['<2 Hours','2-4 Hours','4-6 Hours','6-8 Hours','8-10 Hours','10-12 Hours','>12 Hours'];
-const DEFAULT_USERS=[
-  {username:'admin',      password:'admin123', name:'Admin',       level:'Admin'},
-  {username:'superadmin', password:'super123', name:'Super Admin', level:'SuperAdmin'}
-];
+// Isi dengan URL dan anon key dari Supabase (Project Settings > API). JANGAN pakai service_role key.
+const SUPABASE_URL='https://GANTI-PROJECT-ID.supabase.co';
+const SUPABASE_KEY='GANTI-ANON-KEY';
+
+// Panggil fungsi (RPC) di database Supabase
+async function rpc(fn,body){
+  const res=await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json',apikey:SUPABASE_KEY,Authorization:`Bearer ${SUPABASE_KEY}`},
+    body:JSON.stringify(body)
+  });
+  const data=await res.json().catch(()=>null);
+  if(!res.ok) throw new Error(data?.message||('HTTP '+res.status));
+  return data;
+}
 
 /* ================= UTIL ================= */
 const $=(s)=>document.querySelector(s);
@@ -113,9 +124,9 @@ const load=(k,def)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d
 const store=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}catch{return false}};
 const fmtTime=d=>d?new Date(d).toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'-';
 
-let users=load(USERS_KEY,null);
-if(!users){users=DEFAULT_USERS;store(USERS_KEY,users)}
-let session=load(SESSION_KEY,null);
+let users=[];          // daftar pengguna (hanya untuk SuperAdmin)
+let session=null;      // sesi login aktif (tidak disimpan setelah halaman di-refresh)
+let cred=null;         // kredensial di memori untuk pemanggilan fungsi database
 let notes=load(NOTES_KEY,{});
 
 /* State data */
@@ -211,23 +222,37 @@ function renderLogin(){
         <label>Password<input type="password" name="p" required autocomplete="current-password"></label>
         <p class="err" id="loginErr"></p>
         <button type="submit">Masuk</button>
-        <p class="hint">Admin: monitoring dan catatan tindak lanjut. SuperAdmin: akses penuh termasuk kelola pengguna.</p>
+        <p class="hint">
+          <b>Akun awal:</b><br>
+          Admin: <code>admin</code> / <code>admin123</code><br>
+          SuperAdmin: <code>superadmin</code> / <code>super123</code><br>
+          Admin: monitoring dan catatan tindak lanjut. SuperAdmin: akses penuh termasuk kelola pengguna.
+        </p>
       </form>
     </div>`;
 }
-function login(e){
+async function login(e){
   e.preventDefault();
-  const f=e.target;
-  const found=users.find(x=>x.username===f.u.value.trim()&&x.password===f.p.value);
-  if(!found){ $('#loginErr').textContent='Username atau password salah'; return }
-  session={username:found.username,name:found.name,level:found.level};
-  store(SESSION_KEY,session);
-  view.tab='monitor';
-  render();
+  const f=e.target, btn=f.querySelector('button');
+  const username=f.u.value.trim(), password=f.p.value;
+  btn.disabled=true;
+  try{
+    const rows=await rpc('app_login',{p_username:username,p_password:password});
+    if(!rows||!rows.length){ $('#loginErr').textContent='Username atau password salah'; return }
+    session={username:rows[0].username,name:rows[0].name,level:rows[0].level};
+    cred={username,password};
+    view.tab='monitor';
+    render();
+  }catch(err){
+    $('#loginErr').textContent='Gagal terhubung ke database: '+err.message;
+  }finally{
+    btn.disabled=false;
+  }
 }
 function logout(){
   session=null;
-  localStorage.removeItem(SESSION_KEY);
+  cred=null;
+  users=[];
   closeModal();
   render();
 }
@@ -427,26 +452,31 @@ function userModal(){
       </div>
     </form>`);
 }
-function addUser(e){
+async function addUser(e){
   e.preventDefault();
   if(!isSuper()) return;
   const f=e.target;
-  const username=f.username.value.trim();
-  if(users.some(u=>u.username===username)){ $('#userErr').textContent='Username sudah dipakai'; return }
-  users.push({username,name:f.name.value.trim(),password:f.password.value,level:f.level.value});
-  store(USERS_KEY,users);
-  closeModal();
-  renderShell();
+  try{
+    await rpc('create_user',{
+      p_actor_username:cred.username,p_actor_password:cred.password,
+      p_username:f.username.value.trim(),p_name:f.name.value.trim(),
+      p_password:f.password.value,p_level:f.level.value
+    });
+    closeModal();
+    await loadUsers();
+  }catch(err){
+    $('#userErr').textContent=err.message;
+  }
 }
-function deleteUser(username){
+async function deleteUser(username){
   if(!isSuper()||username===session.username) return;
-  const target=users.find(u=>u.username===username);
-  const supers=users.filter(u=>u.level==='SuperAdmin').length;
-  if(target?.level==='SuperAdmin'&&supers<=1){ alert('Tidak bisa menghapus SuperAdmin terakhir'); return }
   if(!confirm(`Hapus pengguna ${username}?`)) return;
-  users=users.filter(u=>u.username!==username);
-  store(USERS_KEY,users);
-  renderShell();
+  try{
+    await rpc('delete_user',{p_actor_username:cred.username,p_actor_password:cred.password,p_username:username});
+    await loadUsers();
+  }catch(err){
+    alert(err.message);
+  }
 }
 
 /* ================= EVENTS ================= */
@@ -456,7 +486,7 @@ document.addEventListener('click',e=>{
   const act=el.dataset.act;
   if(act==='logout') logout();
   else if(act==='closeModal') closeModal();
-  else if(act==='tab'){ view.tab=el.dataset.tab; renderShell() }
+  else if(act==='tab'){ view.tab=el.dataset.tab; if(view.tab==='users') loadUsers(); else renderShell() }
   else if(act==='refresh') refreshData();
   else if(act==='bucket'){ view.bucket=el.dataset.b; view.page=1; renderStats(); renderTable() }
   else if(act==='page'){ view.page=Math.max(1,view.page+Number(el.dataset.p)); renderTable(); $('#tableArea')?.scrollIntoView({block:'start'}) }
@@ -481,16 +511,20 @@ document.addEventListener('submit',e=>{
 
 /* ================= RENDER ================= */
 function render(){
-  if(session&&!users.some(u=>u.username===session.username)){ logout(); return }
-  if(session){
-    const u=users.find(x=>x.username===session.username);
-    session.level=u.level; session.name=u.name;
-  }
   if(!session){ renderLogin() }
-  else {
-    renderShell();
-  }
+  else { renderShell() }
   updateWatermark();
+}
+
+// Muat daftar pengguna dari database (SuperAdmin)
+async function loadUsers(){
+  try{
+    users=await rpc('list_users',{p_username:cred.username,p_password:cred.password})||[];
+  }catch(err){
+    alert('Gagal memuat pengguna: '+err.message);
+    users=[];
+  }
+  renderShell();
 }
 
 render();
