@@ -1,4 +1,4 @@
-const CACHE = 'stuck-monitoring-v2';
+const CACHE = 'stuck-monitoring-v3';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', e => {
@@ -17,18 +17,19 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
-  const sameOrigin = new URL(e.request.url).origin === self.location.origin;
 
-  // Data sheet (lintas domain) selalu diambil langsung, tidak di-cache oleh service worker
-  if (!sameOrigin) return;
+  // Hanya file aplikasi (same-origin) yang di-cache.
+  // Data Google Sheet dan Apps Script tidak disentuh service worker.
+  if (new URL(e.request.url).origin !== self.location.origin) return;
 
-  // Network first untuk file aplikasi, cache sebagai cadangan saat offline
   e.respondWith(
-    fetch(e.request)
-      .then(res => {
-        caches.open(CACHE).then(c => c.put(e.request, res.clone()));
-        return res;
-      })
-      .catch(() => caches.match(e.request))
+    fetch(e.request).then(res => {
+      if (res.ok) {
+        // Salin respons SEBELUM dikembalikan ke halaman
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {});
+      }
+      return res;
+    }).catch(() => caches.match(e.request))
   );
 });
