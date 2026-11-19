@@ -1,0 +1,19 @@
+{
+  "name": "Stuck Monitoring",
+  "short_name": "Stuck Monitor",
+  "description": "Hourly Order Stuck Monitoring",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f1f5f9",
+  "theme_color": "#1e3a8a",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

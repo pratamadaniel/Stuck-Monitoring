@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1e3a8a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Stuck Monitoring">
+<title>Stuck Monitoring</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<style>
+  :root{--primary:#1e3a8a;--primary-2:#2563eb;--bg:#f1f5f9;--card:#fff;--text:#0f172a;--muted:#64748b;--border:#e2e8f0;--danger:#dc2626;--ok:#16a34a;--warn:#d97706}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text)}
+  button{font:inherit;cursor:pointer;border:0;border-radius:8px;padding:9px 14px;background:var(--primary-2);color:#fff}
+  button.ghost{background:#e2e8f0;color:var(--text)}
+  button.danger{background:var(--danger)}
+  button.small{padding:5px 9px;font-size:13px}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  input,select,textarea{font:inherit;width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text)}
+  label{display:block;font-size:14px;color:var(--muted);margin-bottom:12px}
+  label input,label select,label textarea{margin-top:4px;color:var(--text)}
+  .card{background:var(--card);border-radius:14px;box-shadow:0 4px 18px rgba(15,23,42,.08);padding:16px}
+
+  /* Watermark identitas: menutupi seluruh layar, tidak bisa diklik */
+  .watermark{position:fixed;inset:0;pointer-events:none;z-index:9999;background-repeat:repeat}
+
+  /* Login */
+  .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:linear-gradient(135deg,#1e3a8a,#2563eb)}
+  .login-card{width:100%;max-width:380px;padding:22px}
+  .login-card h1{margin:0 0 4px;font-size:24px;color:var(--primary)}
+  .sub{color:var(--muted);margin:0 0 18px;font-size:14px}
+  .err{color:var(--danger);font-size:14px;min-height:18px;margin:0 0 8px}
+  .login-card button{width:100%}
+  .hint{font-size:12px;color:var(--muted);margin-top:14px;line-height:1.5}
+
+  /* Header */
+  header{background:var(--primary);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:50}
+  header h1{font-size:18px;margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .badge{font-size:12px;padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.2)}
+  .badge.super{background:#f59e0b;color:#111}
+  main{padding:16px;max-width:1280px;margin:0 auto}
+
+  .banner{font-size:13px;padding:8px 12px;border-radius:8px;margin-bottom:12px;background:#dbeafe;color:#1e3a8a}
+  .banner.offline{background:#fef3c7;color:#92400e}
+
+  /* Stats / bucket */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px}
+  .stat{text-align:left;background:var(--card);border:2px solid transparent;color:var(--text);padding:12px;border-radius:12px;box-shadow:0 4px 18px rgba(15,23,42,.06)}
+  .stat small{display:block;color:var(--muted);font-size:12px;margin-bottom:4px}
+  .stat b{font-size:22px}
+  .stat.active{border-color:var(--primary-2)}
+  .stat.hot b{color:var(--danger)}
+
+  /* Tabs & toolbar */
+  .tabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+  .tabs button{background:#fff;color:var(--text);border:1px solid var(--border)}
+  .tabs button.active{background:var(--primary-2);color:#fff;border-color:var(--primary-2)}
+  .toolbar{display:grid;grid-template-columns:2fr repeat(4,1fr) auto;gap:8px;margin-bottom:10px;align-items:center}
+  @media (max-width:900px){.toolbar{grid-template-columns:1fr 1fr}}
+  .info{font-size:13px;color:var(--muted);margin:6px 0 10px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px}
+
+  /* Table */
+  .table-wrap{overflow-x:auto;background:#fff;border-radius:14px;box-shadow:0 4px 18px rgba(15,23,42,.08)}
+  table{width:100%;border-collapse:collapse;font-size:13px;min-width:980px}
+  th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
+  th{background:#f8fafc;font-weight:600;color:var(--muted);white-space:nowrap;position:sticky;top:0}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+  .b-hi{background:#fee2e2;color:#991b1b}
+  .b-mid{background:#ffedd5;color:#9a3412}
+  .b-ok{background:#dcfce7;color:#166534}
+  .note{font-size:12px;color:var(--muted);max-width:220px;white-space:pre-wrap}
+  .empty{padding:30px;text-align:center;color:var(--muted)}
+  .pager{display:flex;align-items:center;justify-content:center;gap:10px;margin:12px 0;flex-wrap:wrap}
+
+  /* Modal */
+  .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);display:flex;align-items:center;justify-content:center;padding:16px;z-index:100}
+  .modal{background:#fff;border-radius:14px;padding:20px;width:100%;max-width:460px;max-height:90vh;overflow:auto}
+  .modal h2{margin:0 0 14px;font-size:18px}
+  .modal .row{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
+  .err-txt{color:var(--danger);font-size:14px;min-height:18px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+  @media (max-width:520px){.grid2{grid-template-columns:1fr}}
+  .muted{color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="modal"></div>
+<div id="watermark" class="watermark"></div>
+
+<script>
+/* ================= KONFIGURASI ================= */
+const SHEET_ID='18Zsbf6Ycvb8YIgvQDMl59ObXX9900fWX15-B8ggMJOw';
+const SHEET_TAB='Raw';
+const SHEET_URL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
+const CSV_URL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET_TAB)}`;
+const USERS_KEY='sm_users', SESSION_KEY='sm_session', NOTES_KEY='sm_notes', CSV_CACHE_KEY='sm_csv_cache';
+const PAGE_SIZE=50;
+const BUCKETS=['<2 Hours','2-4 Hours','4-6 Hours','6-8 Hours','8-10 Hours','10-12 Hours','>12 Hours'];
+const DEFAULT_USERS=[
+  {username:'admin',      password:'admin123', name:'Admin',       level:'Admin'},
+  {username:'superadmin', password:'super123', name:'Super Admin', level:'SuperAdmin'}
+];
+
+/* ================= UTIL ================= */
+const $=(s)=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const load=(k,def)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??def}catch{return def}};
+const store=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}catch{return false}};
+const fmtTime=d=>d?new Date(d).toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'-';
+
+let users=load(USERS_KEY,null);
+if(!users){users=DEFAULT_USERS;store(USERS_KEY,users)}
+let session=load(SESSION_KEY,null);
+let notes=load(NOTES_KEY,{});
+
+/* State data */
+let DATA={records:[],at:null,offline:false,error:''};
+let view={tab:'monitor',q:'',status:'',bucket:'',ws:'',dest:'',page:1};
+
+/* ================= PARSING ================= */
+function parseCSV(text){
+  const out=[];let row=[],field='',q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){
+      if(c==='"'){ if(text[i+1]==='"'){field+='"';i++} else q=false }
+      else field+=c;
+    } else if(c==='"') q=true;
+    else if(c===','){row.push(field);field=''}
+    else if(c==='\n'||c==='\r'){
+      if(c==='\r'&&text[i+1]==='\n') i++;
+      row.push(field);out.push(row);row=[];field='';
+    } else field+=c;
+  }
+  if(field||row.length){row.push(field);out.push(row)}
+  return out.filter(r=>r.length>1||(r[0]&&r[0].trim()));
+}
+
+function bucketOf(h){
+  if(h==null) return '-';
+  if(h<2) return '<2 Hours';
+  if(h<4) return '2-4 Hours';
+  if(h<6) return '4-6 Hours';
+  if(h<8) return '6-8 Hours';
+  if(h<10) return '8-10 Hours';
+  if(h<12) return '10-12 Hours';
+  return '>12 Hours';
+}
+
+function toRecords(table){
+  const head=table[0].map(h=>h.trim());
+  const idx=n=>head.indexOf(n);
+  const I={id:idx('Shipmemt ID'),status:idx('Latest Status'),pickup:idx('Latest Pickup Time'),
+           dest:idx('Destination Station'),aging:idx('Aging Time'),op:idx('Latest Operator'),ws:idx('Latest Workstation')};
+  if(Object.values(I).some(v=>v<0)) throw new Error('Header kolom di sheet tidak sesuai');
+  return table.slice(1).filter(r=>r[I.id]).map(r=>{
+    const h=parseFloat(String(r[I.aging]).split(' ')[0]);
+    const hours=isNaN(h)?null:h;
+    return {id:r[I.id].trim(),status:r[I.status]||'-',pickup:r[I.pickup]||'-',
+            dest:r[I.dest]||'-',hours,bucket:bucketOf(hours),op:r[I.op]||'-',ws:r[I.ws]||'-'};
+  });
+}
+
+/* ================= DATA LOADING ================= */
+async function loadData(){
+  try{
+    const res=await fetch(CSV_URL,{cache:'no-store'});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const text=await res.text();
+    if(text.trim().startsWith('<')) throw new Error('Sheet tidak bisa dibaca (cek pengaturan berbagi)');
+    const records=toRecords(parseCSV(text));
+    const at=new Date().toISOString();
+    store(CSV_CACHE_KEY,{at,text}); // cache untuk mode offline (jika terlalu besar, simpan dilewati)
+    DATA={records,at,offline:false,error:''};
+  }catch(err){
+    const c=load(CSV_CACHE_KEY,null);
+    if(c){ DATA={records:toRecords(parseCSV(c.text)),at:c.at,offline:true,error:err.message} }
+    else { DATA={records:[],at:null,offline:true,error:err.message} }
+  }
+}
+
+/* ================= WATERMARK ================= */
+function updateWatermark(){
+  const text=session
+    ? `${session.name} (${session.username}) · ${session.level} · ${new Date().toLocaleString('id-ID')}`
+    : 'Stuck Monitoring';
+  const c=document.createElement('canvas');
+  c.width=640;c.height=260;
+  const x=c.getContext('2d');
+  x.translate(320,130);x.rotate(-Math.PI/7);
+  x.font='600 16px system-ui,sans-serif';
+  x.fillStyle=session?'rgba(30,58,138,0.10)':'rgba(255,255,255,0.12)';
+  x.textAlign='center';
+  x.fillText(text,0,0);
+  $('#watermark').style.backgroundImage=`url(${c.toDataURL()})`;
+}
+
+/* ================= LOGIN ================= */
+function renderLogin(){
+  $('#app').innerHTML=`
+    <div class="login-wrap">
+      <form id="loginForm" class="card login-card">
+        <h1>Stuck Monitoring</h1>
+        <p class="sub">Hourly Order Stuck Monitoring · Palangka Raya DC</p>
+        <label>Username<input name="u" required autocomplete="username" autofocus></label>
+        <label>Password<input type="password" name="p" required autocomplete="current-password"></label>
+        <p class="err" id="loginErr"></p>
+        <button type="submit">Masuk</button>
+        <p class="hint">Admin: monitoring dan catatan tindak lanjut. SuperAdmin: akses penuh termasuk kelola pengguna.</p>
+      </form>
+    </div>`;
+}
+function login(e){
+  e.preventDefault();
+  const f=e.target;
+  const found=users.find(x=>x.username===f.u.value.trim()&&x.password===f.p.value);
+  if(!found){ $('#loginErr').textContent='Username atau password salah'; return }
+  session={username:found.username,name:found.name,level:found.level};
+  store(SESSION_KEY,session);
+  view.tab='monitor';
+  render();
+}
+function logout(){
+  session=null;
+  localStorage.removeItem(SESSION_KEY);
+  closeModal();
+  render();
+}
+const isSuper=()=>session&&session.level==='SuperAdmin';
+
+/* ================= DASHBOARD ================= */
+function renderShell(){
+  $('#app').innerHTML=`
+    <header>
+      <h1>Stuck Monitoring <span class="badge ${isSuper()?'super':''}">${session.level}</span></h1>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span style="font-size:14px">${esc(session.name)}</span>
+        <button class="small ghost" data-act="logout">Keluar</button>
+      </div>
+    </header>
+    <main>
+      <div class="tabs">
+        <button class="${view.tab==='monitor'?'active':''}" data-act="tab" data-tab="monitor">Monitoring</button>
+        ${isSuper()?`<button class="${view.tab==='users'?'active':''}" data-act="tab" data-tab="users">Pengguna</button>`:''}
+      </div>
+      ${view.tab==='users'&&isSuper() ? usersHTML() : monitorHTML()}
+    </main>`;
+  if(view.tab==='monitor'){ fillMonitor(); }
+}
+
+function monitorHTML(){
+  return `
+    <div id="banner"></div>
+    <div class="stats" id="stats"></div>
+    <div class="toolbar">
+      <input id="q" placeholder="Cari shipment ID, status, workstation, operator..." value="${esc(view.q)}">
+      <select id="fStatus"></select>
+      <select id="fBucket"></select>
+      <select id="fWs"></select>
+      <select id="fDest"></select>
+      <button class="ghost" data-act="refresh" id="btnRefresh">Refresh</button>
+    </div>
+    <div class="info"><span id="resultInfo"></span><span><a href="${SHEET_URL}" target="_blank" rel="noopener">Buka Google Sheet</a></span></div>
+    <div class="table-wrap" id="tableArea"><div class="empty">Memuat data…</div></div>
+    <div class="pager" id="pager"></div>`;
+}
+
+function usersHTML(){
+  return `
+    <div style="margin-bottom:10px"><button data-act="adduser">+ Tambah Pengguna</button></div>
+    <div class="table-wrap"><table style="min-width:520px">
+      <thead><tr><th>Username</th><th>Nama</th><th>Level</th><th>Aksi</th></tr></thead>
+      <tbody>${users.map(u=>`<tr>
+        <td>${esc(u.username)}</td><td>${esc(u.name)}</td>
+        <td><span class="pill ${u.level==='SuperAdmin'?'b-ok':'b-hi'}" style="${u.level==='Admin'?'background:#dbeafe;color:#1e40af':''}">${u.level}</span></td>
+        <td>${u.username===session.username?'<i class="muted">(akun Anda)</i>':`<button class="small danger" data-act="deluser" data-u="${esc(u.username)}">Hapus</button>`}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+}
+
+function fillMonitor(){
+  if(!$('#tableArea')) return;
+  // Banner status sumber data
+  const b=$('#banner');
+  if(DATA.offline){
+    b.innerHTML=`<div class="banner offline">Mode offline: menampilkan data tersimpan${DATA.at?' ('+fmtTime(DATA.at)+')':''}. ${esc(DATA.error)}</div>`;
+  } else {
+    b.innerHTML=`<div class="banner">Data langsung dari Google Sheet · diambil ${fmtTime(DATA.at)} · total ${DATA.records.length.toLocaleString('id-ID')} shipment</div>`;
+  }
+  fillFilterOptions();
+  renderStats();
+  renderTable();
+}
+
+function fillFilterOptions(){
+  const uniq=k=>[...new Set(DATA.records.map(r=>r[k]))].sort((a,b)=>String(a).localeCompare(String(b)));
+  const opts=(list,sel,all)=>`<option value="">${all}</option>`+list.map(v=>`<option value="${esc(v)}" ${v===sel?'selected':''}>${esc(v)}</option>`).join('');
+  $('#fStatus').innerHTML=opts(uniq('status'),view.status,'Semua Status');
+  $('#fBucket').innerHTML=opts(BUCKETS,view.bucket,'Semua Aging');
+  $('#fWs').innerHTML=opts(uniq('ws'),view.ws,'Semua Workstation');
+  $('#fDest').innerHTML=opts(uniq('dest'),view.dest,'Semua Tujuan');
+}
+
+function renderStats(){
+  const total=DATA.records.length;
+  const counts=Object.fromEntries(BUCKETS.map(b=>[b,0]));
+  DATA.records.forEach(r=>{ if(r.bucket in counts) counts[r.bucket]++ });
+  const show=BUCKETS.filter((b,i)=>b!=='<2 Hours'||counts[b]>0);
+  $('#stats').innerHTML=`
+    <button class="stat ${view.bucket===''?'active':''}" data-act="bucket" data-b="">
+      <small>Total Stuck</small><b>${total.toLocaleString('id-ID')}</b></button>
+    ${show.map(b=>`
+      <button class="stat ${view.bucket===b?'active':''} ${b==='>12 Hours'?'hot':''}" data-act="bucket" data-b="${b}">
+        <small>${b}</small><b>${counts[b].toLocaleString('id-ID')}</b></button>`).join('')}`;
+}
+
+function filtered(){
+  const q=view.q.trim().toLowerCase();
+  return DATA.records.filter(r=>
+    (!q||[r.id,r.status,r.ws,r.op,r.dest].some(v=>String(v).toLowerCase().includes(q)))&&
+    (!view.status||r.status===view.status)&&
+    (!view.bucket||r.bucket===view.bucket)&&
+    (!view.ws||r.ws===view.ws)&&
+    (!view.dest||r.dest===view.dest)
+  ).sort((a,b)=>(b.hours??-1)-(a.hours??-1));
+}
+
+function pillFor(bucket){
+  if(bucket==='>12 Hours') return 'b-hi';
+  if(bucket==='10-12 Hours'||bucket==='8-10 Hours') return 'b-mid';
+  return 'b-ok';
+}
+
+function renderTable(){
+  if(!$('#tableArea')) return;
+  const list=filtered();
+  const pages=Math.max(1,Math.ceil(list.length/PAGE_SIZE));
+  if(view.page>pages) view.page=pages;
+  const start=(view.page-1)*PAGE_SIZE;
+  const slice=list.slice(start,start+PAGE_SIZE);
+
+  $('#resultInfo').textContent=`Menampilkan ${list.length?start+1:0}–${start+slice.length} dari ${list.length.toLocaleString('id-ID')} shipment`;
+
+  $('#tableArea').innerHTML=!DATA.records.length
+    ? `<div class="empty">Belum ada data. ${esc(DATA.error)}</div>`
+    : !slice.length
+      ? `<div class="empty">Tidak ada data sesuai filter.</div>`
+      : `<table>
+          <thead><tr>
+            <th>Shipment ID</th><th>Status Terakhir</th><th>Pickup Terakhir</th><th>Tujuan</th>
+            <th>Aging</th><th>Kategori</th><th>Operator</th><th>Workstation</th><th>Catatan</th><th></th>
+          </tr></thead>
+          <tbody>${slice.map(r=>`<tr>
+            <td><b>${esc(r.id)}</b></td>
+            <td>${esc(r.status)}</td>
+            <td>${esc(r.pickup)}</td>
+            <td>${esc(r.dest)}</td>
+            <td>${r.hours==null?'-':r.hours.toFixed(2)+' h'}</td>
+            <td><span class="pill ${pillFor(r.bucket)}">${esc(r.bucket)}</span></td>
+            <td>${esc(r.op)}</td>
+            <td>${esc(r.ws)}</td>
+            <td class="note">${esc(notes[r.id]||'')}</td>
+            <td><button class="small ghost" data-act="note" data-id="${esc(r.id)}">${notes[r.id]?'Ubah':'Catatan'}</button></td>
+          </tr>`).join('')}</tbody>
+        </table>`;
+
+  $('#pager').innerHTML=pages<=1?'':`
+    <button class="small ghost" data-act="page" data-p="-1" ${view.page<=1?'disabled':''}>← Sebelumnya</button>
+    <span class="muted">Halaman ${view.page} / ${pages}</span>
+    <button class="small ghost" data-act="page" data-p="1" ${view.page>=pages?'disabled':''}>Berikutnya →</button>`;
+}
+
+async function refreshData(){
+  const btn=$('#btnRefresh');
+  if(btn){btn.disabled=true;btn.textContent='Memuat…'}
+  await loadData();
+  if(btn){btn.disabled=false;btn.textContent='Refresh'}
+  fillMonitor();
+}
+
+/* ================= MODAL ================= */
+function openModal(html){ $('#modal').innerHTML=`<div class="modal-bg"><div class="modal">${html}</div></div>` }
+function closeModal(){ $('#modal').innerHTML='' }
+
+function noteModal(id){
+  const rec=DATA.records.find(r=>r.id===id);
+  if(!rec) return;
+  openModal(`
+    <h2>Catatan Tindak Lanjut</h2>
+    <p class="muted" style="margin:0 0 10px"><b>${esc(rec.id)}</b> · ${esc(rec.status)} · ${esc(rec.ws)}</p>
+    <form id="noteForm" data-id="${esc(id)}">
+      <label>Catatan<textarea name="note" rows="4" placeholder="Contoh: sudah dikonfirmasi PIC, menunggu unseal">${esc(notes[id]||'')}</textarea></label>
+      <p class="muted">Catatan disimpan di browser perangkat ini.</p>
+      <div class="row">
+        <button type="button" class="ghost" data-act="closeModal">Batal</button>
+        <button type="submit">Simpan</button>
+      </div>
+    </form>`);
+}
+function saveNote(e){
+  e.preventDefault();
+  const id=e.target.dataset.id;
+  const text=e.target.note.value.trim();
+  if(text) notes[id]=text; else delete notes[id];
+  store(NOTES_KEY,notes);
+  closeModal();
+  renderTable();
+}
+
+function userModal(){
+  openModal(`
+    <h2>Tambah Pengguna</h2>
+    <form id="userForm">
+      <label>Username<input name="username" required></label>
+      <label>Nama<input name="name" required></label>
+      <label>Password<input type="password" name="password" required minlength="6"></label>
+      <label>Level<select name="level"><option value="Admin">Admin</option><option value="SuperAdmin">SuperAdmin</option></select></label>
+      <p class="err-txt" id="userErr"></p>
+      <div class="row">
+        <button type="button" class="ghost" data-act="closeModal">Batal</button>
+        <button type="submit">Simpan</button>
+      </div>
+    </form>`);
+}
+function addUser(e){
+  e.preventDefault();
+  if(!isSuper()) return;
+  const f=e.target;
+  const username=f.username.value.trim();
+  if(users.some(u=>u.username===username)){ $('#userErr').textContent='Username sudah dipakai'; return }
+  users.push({username,name:f.name.value.trim(),password:f.password.value,level:f.level.value});
+  store(USERS_KEY,users);
+  closeModal();
+  renderShell();
+}
+function deleteUser(username){
+  if(!isSuper()||username===session.username) return;
+  const target=users.find(u=>u.username===username);
+  const supers=users.filter(u=>u.level==='SuperAdmin').length;
+  if(target?.level==='SuperAdmin'&&supers<=1){ alert('Tidak bisa menghapus SuperAdmin terakhir'); return }
+  if(!confirm(`Hapus pengguna ${username}?`)) return;
+  users=users.filter(u=>u.username!==username);
+  store(USERS_KEY,users);
+  renderShell();
+}
+
+/* ================= EVENTS ================= */
+document.addEventListener('click',e=>{
+  const el=e.target.closest('[data-act]');
+  if(!el||el.disabled) return;
+  const act=el.dataset.act;
+  if(act==='logout') logout();
+  else if(act==='closeModal') closeModal();
+  else if(act==='tab'){ view.tab=el.dataset.tab; renderShell() }
+  else if(act==='refresh') refreshData();
+  else if(act==='bucket'){ view.bucket=el.dataset.b; view.page=1; renderStats(); renderTable() }
+  else if(act==='page'){ view.page=Math.max(1,view.page+Number(el.dataset.p)); renderTable(); $('#tableArea')?.scrollIntoView({block:'start'}) }
+  else if(act==='note') noteModal(el.dataset.id);
+  else if(act==='adduser') userModal();
+  else if(act==='deluser') deleteUser(el.dataset.u);
+});
+
+document.addEventListener('input',e=>{
+  if(e.target.id==='q'){ view.q=e.target.value; view.page=1; renderTable() }
+});
+document.addEventListener('change',e=>{
+  const map={fStatus:'status',fBucket:'bucket',fWs:'ws',fDest:'dest'};
+  if(map[e.target.id]){ view[map[e.target.id]]=e.target.value; view.page=1; renderStats(); renderTable() }
+});
+
+document.addEventListener('submit',e=>{
+  if(e.target.id==='loginForm') login(e);
+  else if(e.target.id==='noteForm') saveNote(e);
+  else if(e.target.id==='userForm') addUser(e);
+});
+
+/* ================= RENDER ================= */
+function render(){
+  if(session&&!users.some(u=>u.username===session.username)){ logout(); return }
+  if(session){
+    const u=users.find(x=>x.username===session.username);
+    session.level=u.level; session.name=u.name;
+  }
+  if(!session){ renderLogin() }
+  else {
+    renderShell();
+  }
+  updateWatermark();
+}
+
+render();
+setInterval(updateWatermark,60000);
+
+// Muat data di awal dengan cepat dari cache, lalu perbarui dari sheet
+(async()=>{ await loadData(); if(session) render(); })();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+</script>
+</body>
+</html>
