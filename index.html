@@ -18,6 +18,7 @@
   button{font:inherit;cursor:pointer;border:0;border-radius:8px;padding:9px 14px;background:var(--primary-2);color:#fff}
   button.ghost{background:#e2e8f0;color:var(--text)}
   button.small{padding:5px 9px;font-size:13px}
+  button.danger{background:var(--danger)}
   button:disabled{opacity:.5;cursor:not-allowed}
   input,select,textarea{font:inherit;width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text)}
   label{display:block;font-size:14px;color:var(--muted);margin-bottom:12px}
@@ -46,7 +47,7 @@
   .banner{font-size:13px;padding:8px 12px;border-radius:8px;margin-bottom:12px;background:#dbeafe;color:#1e3a8a}
   .banner.offline{background:#fef3c7;color:#92400e}
 
-  /* Stats / kategori aging */
+  /* Kategori aging */
   .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px}
   .stat{text-align:left;background:var(--card);border:2px solid transparent;color:var(--text);padding:12px;border-radius:12px;box-shadow:0 4px 18px rgba(15,23,42,.06)}
   .stat small{display:block;color:var(--muted);font-size:12px;margin-bottom:4px}
@@ -88,9 +89,8 @@
 
 <script>
 /* ================= KONFIGURASI ================= */
-// Diisi otomatis oleh scripts/build.js dari Environment Variables di Netlify
-const SUPABASE_URL='__SUPABASE_URL__';
-const SUPABASE_KEY='__SUPABASE_ANON_KEY__';
+// URL Web App dari Google Apps Script (langkah deploy di backend-users/Code.gs)
+const API_URL='https://script.google.com/macros/s/AKfycbzu4hPLMpZlpB7xA2eWWg0XUZQq6R8qoZBeGcBObX5uVkhhLvshMm7atH-5X3fDnloLSQ/exec';
 
 // Data shipment: tab Raw dari Google Sheet (dibagikan "Anyone with the link can view")
 const SHEET_ID='18Zsbf6Ycvb8YIgvQDMl59ObXX9900fWX15-B8ggMJOw';
@@ -111,39 +111,36 @@ const store=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}ca
 const fmtTime=d=>d?new Date(d).toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'-';
 
 let notes=load(NOTES_KEY,{});
-let session=null;   // { email, name, level, token } (hanya di memori, hilang saat refresh)
+let session=null;   // { email, name, level } (hanya di memori, hilang saat refresh)
 let DATA={records:[],at:null,offline:false,error:''};
 let view={q:'',status:'',bucket:'',ws:'',dest:'',page:1};
 
-/* ================= AUTH (Supabase Auth) ================= */
-async function signIn(email,password){
-  const res=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`,{
-    method:'POST',
-    headers:{'Content-Type':'application/json',apikey:SUPABASE_KEY},
-    body:JSON.stringify({email,password})
-  });
-  const data=await res.json().catch(()=>({}));
-  if(!res.ok) throw new Error(data.error_description||data.msg||data.message||'Email atau password salah');
-  const u=data.user||{};
-  const level=u.app_metadata?.level;
-  if(!LEVELS.includes(level)) throw new Error('Akun belum memiliki level (Admin/SuperAdmin). Hubungi administrator.');
-  return {
-    email:u.email,
-    name:u.user_metadata?.name||u.email,
-    level,
-    token:data.access_token
-  };
+/* ================= LOGIN (Google Apps Script) ================= */
+async function signIn(username,password){
+  if(!API_URL||API_URL.includes('GANTI')){
+    throw new Error('URL Apps Script belum diisi di index.html (API_URL).');
+  }
+  let res;
+  try{
+    res=await fetch(API_URL,{
+      method:'POST',
+      // text/plain menghindari preflight CORS yang tidak didukung Apps Script
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({action:'login',username,password})
+    });
+  }catch(_){
+    throw new Error('Tidak bisa terhubung ke server login. Periksa koneksi internet.');
+  }
+  const json=await res.json().catch(()=>null);
+  if(!json||!json.ok) throw new Error(json?.error||'Server login tidak merespons dengan benar');
+  const rows=json.data||[];
+  if(!rows.length) throw new Error('Username atau password salah, atau akun nonaktif');
+  if(!LEVELS.includes(rows[0].level)) throw new Error('Level akun tidak valid (Admin/SuperAdmin)');
+  return {email:rows[0].username,name:rows[0].name,level:rows[0].level};
 }
 
-async function signOut(){
-  const token=session?.token;
+function signOut(){
   session=null;
-  if(token){
-    fetch(`${SUPABASE_URL}/auth/v1/logout`,{
-      method:'POST',
-      headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${token}`}
-    }).catch(()=>{});
-  }
   DATA={records:[],at:null,offline:false,error:''};
   view={q:'',status:'',bucket:'',ws:'',dest:'',page:1};
   render();
@@ -151,7 +148,7 @@ async function signOut(){
 
 const isSuper=()=>session&&session.level==='SuperAdmin';
 
-/* ================= PARSING DATA ================= */
+/* ================= DATA SHIPMENT ================= */
 function parseCSV(text){
   const out=[];let row=[],field='',q=false;
   for(let i=0;i<text.length;i++){
@@ -228,18 +225,18 @@ function updateWatermark(){
   $('#watermark').style.backgroundImage=`url(${c.toDataURL()})`;
 }
 
-/* ================= LOGIN ================= */
+/* ================= LOGIN UI ================= */
 function renderLogin(){
   $('#app').innerHTML=`
     <div class="login-wrap">
       <form id="loginForm" class="card login-card">
         <h1>Stuck Monitoring</h1>
         <p class="sub">Hourly Order Stuck Monitoring · Palangka Raya DC</p>
-        <label>Email<input name="email" type="email" required autocomplete="username" autofocus></label>
+        <label>Username<input name="username" required autocomplete="username" autofocus></label>
         <label>Password<input type="password" name="password" required autocomplete="current-password"></label>
         <p class="err" id="loginErr"></p>
         <button type="submit" id="btnLogin">Masuk</button>
-        <p class="hint">Akun dikelola di dashboard Supabase. Level Admin: monitoring dan catatan. SuperAdmin: sama seperti Admin, ditambah hapus catatan.</p>
+        <p class="hint">Level Admin: monitoring dan catatan tindak lanjut. SuperAdmin: sama seperti Admin, ditambah hapus catatan.</p>
       </form>
     </div>`;
 }
@@ -249,7 +246,7 @@ async function login(e){
   const f=e.target, btn=$('#btnLogin');
   btn.disabled=true; $('#loginErr').textContent='';
   try{
-    session=await signIn(f.email.value.trim(),f.password.value);
+    session=await signIn(f.username.value.trim(),f.password.value);
     view={q:'',status:'',bucket:'',ws:'',dest:'',page:1};
     await loadData();
     render();
@@ -290,8 +287,7 @@ function renderShell(){
 
 function fillMonitor(){
   if(!$('#tableArea')) return;
-  const b=$('#banner');
-  b.innerHTML=DATA.offline
+  $('#banner').innerHTML=DATA.offline
     ? `<div class="banner offline">Mode offline: menampilkan data tersimpan${DATA.at?' ('+fmtTime(DATA.at)+')':''}. ${esc(DATA.error)}</div>`
     : `<div class="banner">Data dari Google Sheet · diambil ${fmtTime(DATA.at)} · total ${DATA.records.length.toLocaleString('id-ID')} shipment</div>`;
   fillFilterOptions();
@@ -368,7 +364,7 @@ function renderTable(){
             <td class="note">${esc(notes[r.id]||'')}</td>
             <td><div style="display:flex;gap:6px;flex-wrap:wrap">
               <button class="small ghost" data-act="note" data-id="${esc(r.id)}">${notes[r.id]?'Ubah':'Catatan'}</button>
-              ${isSuper()&&notes[r.id]?`<button class="small" style="background:var(--danger)" data-act="delnote" data-id="${esc(r.id)}">Hapus</button>`:''}
+              ${isSuper()&&notes[r.id]?`<button class="small danger" data-act="delnote" data-id="${esc(r.id)}">Hapus</button>`:''}
             </div></td>
           </tr>`).join('')}</tbody>
         </table>`;
