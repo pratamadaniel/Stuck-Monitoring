@@ -11,18 +11,17 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon.svg">
 <style>
-  :root{--primary:#1e3a8a;--primary-2:#2563eb;--bg:#f1f5f9;--card:#fff;--text:#0f172a;--muted:#64748b;--border:#e2e8f0;--danger:#dc2626;--ok:#16a34a;--warn:#d97706}
+  :root{--primary:#1e3a8a;--primary-2:#2563eb;--bg:#f1f5f9;--card:#fff;--text:#0f172a;--muted:#64748b;--border:#e2e8f0;--danger:#dc2626;--warn:#d97706}
   *{box-sizing:border-box}
   html,body{margin:0;min-height:100%}
   body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text)}
   button{font:inherit;cursor:pointer;border:0;border-radius:8px;padding:9px 14px;background:var(--primary-2);color:#fff}
   button.ghost{background:#e2e8f0;color:var(--text)}
-  button.danger{background:var(--danger)}
   button.small{padding:5px 9px;font-size:13px}
   button:disabled{opacity:.5;cursor:not-allowed}
   input,select,textarea{font:inherit;width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text)}
   label{display:block;font-size:14px;color:var(--muted);margin-bottom:12px}
-  label input,label select,label textarea{margin-top:4px;color:var(--text)}
+  label input,label textarea{margin-top:4px;color:var(--text)}
   .card{background:var(--card);border-radius:14px;box-shadow:0 4px 18px rgba(15,23,42,.08);padding:16px}
 
   /* Watermark identitas: menutupi seluruh layar, tidak bisa diklik */
@@ -47,7 +46,7 @@
   .banner{font-size:13px;padding:8px 12px;border-radius:8px;margin-bottom:12px;background:#dbeafe;color:#1e3a8a}
   .banner.offline{background:#fef3c7;color:#92400e}
 
-  /* Stats / bucket */
+  /* Stats / kategori aging */
   .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px}
   .stat{text-align:left;background:var(--card);border:2px solid transparent;color:var(--text);padding:12px;border-radius:12px;box-shadow:0 4px 18px rgba(15,23,42,.06)}
   .stat small{display:block;color:var(--muted);font-size:12px;margin-bottom:4px}
@@ -55,19 +54,17 @@
   .stat.active{border-color:var(--primary-2)}
   .stat.hot b{color:var(--danger)}
 
-  /* Tabs & toolbar */
-  .tabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
-  .tabs button{background:#fff;color:var(--text);border:1px solid var(--border)}
-  .tabs button.active{background:var(--primary-2);color:#fff;border-color:var(--primary-2)}
+  /* Toolbar */
   .toolbar{display:grid;grid-template-columns:2fr repeat(4,1fr) auto;gap:8px;margin-bottom:10px;align-items:center}
   @media (max-width:900px){.toolbar{grid-template-columns:1fr 1fr}}
   .info{font-size:13px;color:var(--muted);margin:6px 0 10px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px}
+  .info a{color:var(--primary-2)}
 
   /* Table */
   .table-wrap{overflow-x:auto;background:#fff;border-radius:14px;box-shadow:0 4px 18px rgba(15,23,42,.08)}
   table{width:100%;border-collapse:collapse;font-size:13px;min-width:980px}
   th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
-  th{background:#f8fafc;font-weight:600;color:var(--muted);white-space:nowrap;position:sticky;top:0}
+  th{background:#f8fafc;font-weight:600;color:var(--muted);white-space:nowrap}
   .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
   .b-hi{background:#fee2e2;color:#991b1b}
   .b-mid{background:#ffedd5;color:#9a3412}
@@ -75,16 +72,13 @@
   .note{font-size:12px;color:var(--muted);max-width:220px;white-space:pre-wrap}
   .empty{padding:30px;text-align:center;color:var(--muted)}
   .pager{display:flex;align-items:center;justify-content:center;gap:10px;margin:12px 0;flex-wrap:wrap}
+  .muted{color:var(--muted);font-size:13px}
 
   /* Modal */
   .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);display:flex;align-items:center;justify-content:center;padding:16px;z-index:100}
   .modal{background:#fff;border-radius:14px;padding:20px;width:100%;max-width:460px;max-height:90vh;overflow:auto}
   .modal h2{margin:0 0 14px;font-size:18px}
   .modal .row{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
-  .err-txt{color:var(--danger);font-size:14px;min-height:18px}
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
-  @media (max-width:520px){.grid2{grid-template-columns:1fr}}
-  .muted{color:var(--muted);font-size:13px}
 </style>
 </head>
 <body>
@@ -94,47 +88,70 @@
 
 <script>
 /* ================= KONFIGURASI ================= */
-const SHEET_ID='18Zsbf6Ycvb8YIgvQDMl59ObXX9900fWX15-B8ggMJOw';
-const SHEET_TAB='Raw';
-const SHEET_URL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
-const CSV_URL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET_TAB)}`;
-const USERS_KEY='sm_users', SESSION_KEY='sm_session', NOTES_KEY='sm_notes', CSV_CACHE_KEY='sm_csv_cache';
-const PAGE_SIZE=50;
-const BUCKETS=['<2 Hours','2-4 Hours','4-6 Hours','6-8 Hours','8-10 Hours','10-12 Hours','>12 Hours'];
-// Isi dengan URL dan anon key dari Supabase (Project Settings > API). JANGAN pakai service_role key.
 // Diisi otomatis oleh scripts/build.js dari Environment Variables di Netlify
 const SUPABASE_URL='__SUPABASE_URL__';
 const SUPABASE_KEY='__SUPABASE_ANON_KEY__';
 
-// Panggil fungsi (RPC) di database Supabase
-async function rpc(fn,body){
-  const res=await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`,{
-    method:'POST',
-    headers:{'Content-Type':'application/json',apikey:SUPABASE_KEY,Authorization:`Bearer ${SUPABASE_KEY}`},
-    body:JSON.stringify(body)
-  });
-  const data=await res.json().catch(()=>null);
-  if(!res.ok) throw new Error(data?.message||('HTTP '+res.status));
-  return data;
-}
+// Data shipment: tab Raw dari Google Sheet (dibagikan "Anyone with the link can view")
+const SHEET_ID='18Zsbf6Ycvb8YIgvQDMl59ObXX9900fWX15-B8ggMJOw';
+const SHEET_TAB='Raw';
+const SHEET_URL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
+const CSV_URL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET_TAB)}`;
+
+const NOTES_KEY='sm_notes', CSV_CACHE_KEY='sm_csv_cache';
+const PAGE_SIZE=50;
+const BUCKETS=['<2 Hours','2-4 Hours','4-6 Hours','6-8 Hours','8-10 Hours','10-12 Hours','>12 Hours'];
+const LEVELS=['Admin','SuperAdmin'];
 
 /* ================= UTIL ================= */
-const $=(s)=>document.querySelector(s);
+const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const load=(k,def)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??def}catch{return def}};
 const store=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}catch{return false}};
 const fmtTime=d=>d?new Date(d).toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'-';
 
-let users=[];          // daftar pengguna (hanya untuk SuperAdmin)
-let session=null;      // sesi login aktif (tidak disimpan setelah halaman di-refresh)
-let cred=null;         // kredensial di memori untuk pemanggilan fungsi database
 let notes=load(NOTES_KEY,{});
-
-/* State data */
+let session=null;   // { email, name, level, token } (hanya di memori, hilang saat refresh)
 let DATA={records:[],at:null,offline:false,error:''};
-let view={tab:'monitor',q:'',status:'',bucket:'',ws:'',dest:'',page:1};
+let view={q:'',status:'',bucket:'',ws:'',dest:'',page:1};
 
-/* ================= PARSING ================= */
+/* ================= AUTH (Supabase Auth) ================= */
+async function signIn(email,password){
+  const res=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json',apikey:SUPABASE_KEY},
+    body:JSON.stringify({email,password})
+  });
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.error_description||data.msg||data.message||'Email atau password salah');
+  const u=data.user||{};
+  const level=u.app_metadata?.level;
+  if(!LEVELS.includes(level)) throw new Error('Akun belum memiliki level (Admin/SuperAdmin). Hubungi administrator.');
+  return {
+    email:u.email,
+    name:u.user_metadata?.name||u.email,
+    level,
+    token:data.access_token
+  };
+}
+
+async function signOut(){
+  const token=session?.token;
+  session=null;
+  if(token){
+    fetch(`${SUPABASE_URL}/auth/v1/logout`,{
+      method:'POST',
+      headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${token}`}
+    }).catch(()=>{});
+  }
+  DATA={records:[],at:null,offline:false,error:''};
+  view={q:'',status:'',bucket:'',ws:'',dest:'',page:1};
+  render();
+}
+
+const isSuper=()=>session&&session.level==='SuperAdmin';
+
+/* ================= PARSING DATA ================= */
 function parseCSV(text){
   const out=[];let row=[],field='',q=false;
   for(let i=0;i<text.length;i++){
@@ -178,8 +195,6 @@ function toRecords(table){
   });
 }
 
-/* ================= DATA LOADING ================= */
-// Mengambil data shipment dari tab Raw (Google Sheet publik, format CSV)
 async function loadData(){
   try{
     const res=await fetch(CSV_URL,{cache:'no-store'});
@@ -188,7 +203,7 @@ async function loadData(){
     if(text.trim().startsWith('<')) throw new Error('Sheet tidak bisa dibaca (cek pengaturan berbagi)');
     const records=toRecords(parseCSV(text));
     const at=new Date().toISOString();
-    try{ localStorage.setItem(CSV_CACHE_KEY,JSON.stringify({at,text})) }catch{} // cache untuk mode offline
+    store(CSV_CACHE_KEY,{at,text});
     DATA={records,at,offline:false,error:''};
   }catch(err){
     const c=load(CSV_CACHE_KEY,null);
@@ -200,7 +215,7 @@ async function loadData(){
 /* ================= WATERMARK ================= */
 function updateWatermark(){
   const text=session
-    ? `${session.name} (${session.username}) · ${session.level} · ${new Date().toLocaleString('id-ID')}`
+    ? `${session.name} (${session.email}) · ${session.level} · ${new Date().toLocaleString('id-ID')}`
     : 'Stuck Monitoring';
   const c=document.createElement('canvas');
   c.width=640;c.height=260;
@@ -220,107 +235,65 @@ function renderLogin(){
       <form id="loginForm" class="card login-card">
         <h1>Stuck Monitoring</h1>
         <p class="sub">Hourly Order Stuck Monitoring · Palangka Raya DC</p>
-        <label>Username<input name="u" required autocomplete="username" autofocus></label>
-        <label>Password<input type="password" name="p" required autocomplete="current-password"></label>
+        <label>Email<input name="email" type="email" required autocomplete="username" autofocus></label>
+        <label>Password<input type="password" name="password" required autocomplete="current-password"></label>
         <p class="err" id="loginErr"></p>
-        <button type="submit">Masuk</button>
-        <p class="hint">
-          <b>Akun awal:</b><br>
-          Admin: <code>admin</code> / <code>admin123</code><br>
-          SuperAdmin: <code>superadmin</code> / <code>super123</code><br>
-          Admin: monitoring dan catatan tindak lanjut. SuperAdmin: akses penuh termasuk kelola pengguna.
-        </p>
+        <button type="submit" id="btnLogin">Masuk</button>
+        <p class="hint">Akun dikelola di dashboard Supabase. Level Admin: monitoring dan catatan. SuperAdmin: sama seperti Admin, ditambah hapus catatan.</p>
       </form>
     </div>`;
 }
+
 async function login(e){
   e.preventDefault();
-  const f=e.target, btn=f.querySelector('button');
-  const username=f.u.value.trim(), password=f.p.value;
-  btn.disabled=true;
+  const f=e.target, btn=$('#btnLogin');
+  btn.disabled=true; $('#loginErr').textContent='';
   try{
-    const rows=await rpc('app_login',{p_username:username,p_password:password});
-    if(!rows||!rows.length){ $('#loginErr').textContent='Username atau password salah'; return }
-    session={username:rows[0].username,name:rows[0].name,level:rows[0].level};
-    cred={username,password};
-    view.tab='monitor';
+    session=await signIn(f.email.value.trim(),f.password.value);
+    view={q:'',status:'',bucket:'',ws:'',dest:'',page:1};
     await loadData();
     render();
   }catch(err){
-    $('#loginErr').textContent='Gagal terhubung ke database: '+err.message;
+    $('#loginErr').textContent=err.message;
   }finally{
     btn.disabled=false;
   }
 }
-function logout(){
-  session=null;
-  cred=null;
-  users=[];
-  DATA={records:[],at:null,offline:false,error:''};
-  closeModal();
-  render();
-}
-const isSuper=()=>session&&session.level==='SuperAdmin';
 
 /* ================= DASHBOARD ================= */
 function renderShell(){
   $('#app').innerHTML=`
     <header>
-      <h1>Stuck Monitoring <span class="badge ${isSuper()?'super':''}">${session.level}</span></h1>
+      <h1>Stuck Monitoring <span class="badge ${isSuper()?'super':''}">${esc(session.level)}</span></h1>
       <div style="display:flex;gap:8px;align-items:center">
         <span style="font-size:14px">${esc(session.name)}</span>
         <button class="small ghost" data-act="logout">Keluar</button>
       </div>
     </header>
     <main>
-      <div class="tabs">
-        <button class="${view.tab==='monitor'?'active':''}" data-act="tab" data-tab="monitor">Monitoring</button>
-        ${isSuper()?`<button class="${view.tab==='users'?'active':''}" data-act="tab" data-tab="users">Pengguna</button>`:''}
+      <div id="banner"></div>
+      <div class="stats" id="stats"></div>
+      <div class="toolbar">
+        <input id="q" placeholder="Cari shipment ID, status, workstation, operator..." value="${esc(view.q)}">
+        <select id="fStatus"></select>
+        <select id="fBucket"></select>
+        <select id="fWs"></select>
+        <select id="fDest"></select>
+        <button class="ghost" data-act="refresh" id="btnRefresh">Refresh</button>
       </div>
-      ${view.tab==='users'&&isSuper() ? usersHTML() : monitorHTML()}
+      <div class="info"><span id="resultInfo"></span><span><a href="${SHEET_URL}" target="_blank" rel="noopener">Buka Google Sheet</a></span></div>
+      <div class="table-wrap" id="tableArea"></div>
+      <div class="pager" id="pager"></div>
     </main>`;
-  if(view.tab==='monitor'){ fillMonitor(); }
-}
-
-function monitorHTML(){
-  return `
-    <div id="banner"></div>
-    <div class="stats" id="stats"></div>
-    <div class="toolbar">
-      <input id="q" placeholder="Cari shipment ID, status, workstation, operator..." value="${esc(view.q)}">
-      <select id="fStatus"></select>
-      <select id="fBucket"></select>
-      <select id="fWs"></select>
-      <select id="fDest"></select>
-      <button class="ghost" data-act="refresh" id="btnRefresh">Refresh</button>
-    </div>
-    <div class="info"><span id="resultInfo"></span><span><a href="${SHEET_URL}" target="_blank" rel="noopener">Buka Google Sheet</a></span></div>
-    <div class="table-wrap" id="tableArea"><div class="empty">Memuat data…</div></div>
-    <div class="pager" id="pager"></div>`;
-}
-
-function usersHTML(){
-  return `
-    <div style="margin-bottom:10px"><button data-act="adduser">+ Tambah Pengguna</button></div>
-    <div class="table-wrap"><table style="min-width:520px">
-      <thead><tr><th>Username</th><th>Nama</th><th>Level</th><th>Aksi</th></tr></thead>
-      <tbody>${users.map(u=>`<tr>
-        <td>${esc(u.username)}</td><td>${esc(u.name)}</td>
-        <td><span class="pill ${u.level==='SuperAdmin'?'b-ok':'b-hi'}" style="${u.level==='Admin'?'background:#dbeafe;color:#1e40af':''}">${u.level}</span></td>
-        <td>${u.username===session.username?'<i class="muted">(akun Anda)</i>':`<button class="small danger" data-act="deluser" data-u="${esc(u.username)}">Hapus</button>`}</td>
-      </tr>`).join('')}</tbody>
-    </table></div>`;
+  fillMonitor();
 }
 
 function fillMonitor(){
   if(!$('#tableArea')) return;
-  // Banner status sumber data
   const b=$('#banner');
-  if(DATA.offline){
-    b.innerHTML=`<div class="banner offline">Mode offline: menampilkan data tersimpan${DATA.at?' ('+fmtTime(DATA.at)+')':''}. ${esc(DATA.error)}</div>`;
-  } else {
-    b.innerHTML=`<div class="banner">Data langsung dari Google Sheet · diambil ${fmtTime(DATA.at)} · total ${DATA.records.length.toLocaleString('id-ID')} shipment</div>`;
-  }
+  b.innerHTML=DATA.offline
+    ? `<div class="banner offline">Mode offline: menampilkan data tersimpan${DATA.at?' ('+fmtTime(DATA.at)+')':''}. ${esc(DATA.error)}</div>`
+    : `<div class="banner">Data dari Google Sheet · diambil ${fmtTime(DATA.at)} · total ${DATA.records.length.toLocaleString('id-ID')} shipment</div>`;
   fillFilterOptions();
   renderStats();
   renderTable();
@@ -336,13 +309,12 @@ function fillFilterOptions(){
 }
 
 function renderStats(){
-  const total=DATA.records.length;
   const counts=Object.fromEntries(BUCKETS.map(b=>[b,0]));
   DATA.records.forEach(r=>{ if(r.bucket in counts) counts[r.bucket]++ });
-  const show=BUCKETS.filter((b,i)=>b!=='<2 Hours'||counts[b]>0);
+  const show=BUCKETS.filter(b=>b!=='<2 Hours'||counts[b]>0);
   $('#stats').innerHTML=`
     <button class="stat ${view.bucket===''?'active':''}" data-act="bucket" data-b="">
-      <small>Total Stuck</small><b>${total.toLocaleString('id-ID')}</b></button>
+      <small>Total Stuck</small><b>${DATA.records.length.toLocaleString('id-ID')}</b></button>
     ${show.map(b=>`
       <button class="stat ${view.bucket===b?'active':''} ${b==='>12 Hours'?'hot':''}" data-act="bucket" data-b="${b}">
         <small>${b}</small><b>${counts[b].toLocaleString('id-ID')}</b></button>`).join('')}`;
@@ -394,7 +366,10 @@ function renderTable(){
             <td>${esc(r.op)}</td>
             <td>${esc(r.ws)}</td>
             <td class="note">${esc(notes[r.id]||'')}</td>
-            <td><button class="small ghost" data-act="note" data-id="${esc(r.id)}">${notes[r.id]?'Ubah':'Catatan'}</button></td>
+            <td><div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="small ghost" data-act="note" data-id="${esc(r.id)}">${notes[r.id]?'Ubah':'Catatan'}</button>
+              ${isSuper()&&notes[r.id]?`<button class="small" style="background:var(--danger)" data-act="delnote" data-id="${esc(r.id)}">Hapus</button>`:''}
+            </div></td>
           </tr>`).join('')}</tbody>
         </table>`;
 
@@ -412,7 +387,7 @@ async function refreshData(){
   fillMonitor();
 }
 
-/* ================= MODAL ================= */
+/* ================= CATATAN ================= */
 function openModal(html){ $('#modal').innerHTML=`<div class="modal-bg"><div class="modal">${html}</div></div>` }
 function closeModal(){ $('#modal').innerHTML='' }
 
@@ -425,12 +400,13 @@ function noteModal(id){
     <form id="noteForm" data-id="${esc(id)}">
       <label>Catatan<textarea name="note" rows="4" placeholder="Contoh: sudah dikonfirmasi PIC, menunggu unseal">${esc(notes[id]||'')}</textarea></label>
       <p class="muted">Catatan disimpan di browser perangkat ini.</p>
-      <div class="row">
+      <div class="row" style="display:flex;gap:8px;justify-content:flex-end">
         <button type="button" class="ghost" data-act="closeModal">Batal</button>
         <button type="submit">Simpan</button>
       </div>
     </form>`);
 }
+
 function saveNote(e){
   e.preventDefault();
   const id=e.target.dataset.id;
@@ -441,46 +417,12 @@ function saveNote(e){
   renderTable();
 }
 
-function userModal(){
-  openModal(`
-    <h2>Tambah Pengguna</h2>
-    <form id="userForm">
-      <label>Username<input name="username" required></label>
-      <label>Nama<input name="name" required></label>
-      <label>Password<input type="password" name="password" required minlength="6"></label>
-      <label>Level<select name="level"><option value="Admin">Admin</option><option value="SuperAdmin">SuperAdmin</option></select></label>
-      <p class="err-txt" id="userErr"></p>
-      <div class="row">
-        <button type="button" class="ghost" data-act="closeModal">Batal</button>
-        <button type="submit">Simpan</button>
-      </div>
-    </form>`);
-}
-async function addUser(e){
-  e.preventDefault();
+function deleteNote(id){
   if(!isSuper()) return;
-  const f=e.target;
-  try{
-    await rpc('create_user',{
-      p_actor_username:cred.username,p_actor_password:cred.password,
-      p_username:f.username.value.trim(),p_name:f.name.value.trim(),
-      p_password:f.password.value,p_level:f.level.value
-    });
-    closeModal();
-    await loadUsers();
-  }catch(err){
-    $('#userErr').textContent=err.message;
-  }
-}
-async function deleteUser(username){
-  if(!isSuper()||username===session.username) return;
-  if(!confirm(`Hapus pengguna ${username}?`)) return;
-  try{
-    await rpc('delete_user',{p_actor_username:cred.username,p_actor_password:cred.password,p_username:username});
-    await loadUsers();
-  }catch(err){
-    alert(err.message);
-  }
+  if(!confirm('Hapus catatan ini?')) return;
+  delete notes[id];
+  store(NOTES_KEY,notes);
+  renderTable();
 }
 
 /* ================= EVENTS ================= */
@@ -488,15 +430,13 @@ document.addEventListener('click',e=>{
   const el=e.target.closest('[data-act]');
   if(!el||el.disabled) return;
   const act=el.dataset.act;
-  if(act==='logout') logout();
+  if(act==='logout') signOut();
   else if(act==='closeModal') closeModal();
-  else if(act==='tab'){ view.tab=el.dataset.tab; if(view.tab==='users') loadUsers(); else renderShell() }
   else if(act==='refresh') refreshData();
   else if(act==='bucket'){ view.bucket=el.dataset.b; view.page=1; renderStats(); renderTable() }
   else if(act==='page'){ view.page=Math.max(1,view.page+Number(el.dataset.p)); renderTable(); $('#tableArea')?.scrollIntoView({block:'start'}) }
   else if(act==='note') noteModal(el.dataset.id);
-  else if(act==='adduser') userModal();
-  else if(act==='deluser') deleteUser(el.dataset.u);
+  else if(act==='delnote') deleteNote(el.dataset.id);
 });
 
 document.addEventListener('input',e=>{
@@ -510,30 +450,16 @@ document.addEventListener('change',e=>{
 document.addEventListener('submit',e=>{
   if(e.target.id==='loginForm') login(e);
   else if(e.target.id==='noteForm') saveNote(e);
-  else if(e.target.id==='userForm') addUser(e);
 });
 
 /* ================= RENDER ================= */
 function render(){
-  if(!session){ renderLogin() }
-  else { renderShell() }
+  if(!session) renderLogin(); else renderShell();
   updateWatermark();
-}
-
-// Muat daftar pengguna dari database (SuperAdmin)
-async function loadUsers(){
-  try{
-    users=await rpc('list_users',{p_username:cred.username,p_password:cred.password})||[];
-  }catch(err){
-    alert('Gagal memuat pengguna: '+err.message);
-    users=[];
-  }
-  renderShell();
 }
 
 render();
 setInterval(updateWatermark,60000);
-
 
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
